@@ -1,3 +1,4 @@
+@import 'reactflow/dist/style.css';
 @import "tailwindcss";
 
 :root {
@@ -14,8 +15,8 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #ffffff;
+  --foreground: #171717;
   }
 }
 
