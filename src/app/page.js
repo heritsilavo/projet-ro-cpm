@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic';
 
 // Import dynamique côté client pour éviter les erreurs de SSR
-const CPMGraph = dynamic(() => import('../components/CPMGraph'), {
+const CPMGraph = dynamic(() => import('../components/CPMGraph/CPMGraph'), {
   ssr: false,
 });
 

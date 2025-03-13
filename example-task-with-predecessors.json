@@ -1,0 +1,287 @@
+[
+    {
+        "id": "start",
+        "name": "Début",
+        "duration": 0,
+        "successors": [
+            "a"
+        ],
+        "predecessors": []
+    },
+    {
+        "id": "a",
+        "name": "a",
+        "duration": 7,
+        "successors": [
+            "b"
+        ],
+        "predecessors": [
+            "start"
+        ]
+    },
+    {
+        "id": "b",
+        "name": "b",
+        "duration": 7,
+        "successors": [
+            "c"
+        ],
+        "predecessors": [
+            "a"
+        ]
+    },
+    {
+        "id": "c",
+        "name": "c",
+        "duration": 15,
+        "successors": [
+            "d"
+        ],
+        "predecessors": [
+            "b"
+        ]
+    },
+    {
+        "id": "d",
+        "name": "d",
+        "duration": 30,
+        "successors": [
+            "e",
+            "g",
+            "h"
+        ],
+        "predecessors": [
+            "c"
+        ]
+    },
+    {
+        "id": "e",
+        "name": "e",
+        "duration": 45,
+        "successors": [
+            "f"
+        ],
+        "predecessors": [
+            "d"
+        ]
+    },
+    {
+        "id": "f",
+        "name": "f",
+        "duration": 15,
+        "successors": [
+            "k"
+        ],
+        "predecessors": [
+            "e"
+        ]
+    },
+    {
+        "id": "g",
+        "name": "g",
+        "duration": 45,
+        "successors": [
+            "l"
+        ],
+        "predecessors": [
+            "d"
+        ]
+    },
+    {
+        "id": "h",
+        "name": "h",
+        "duration": 60,
+        "successors": [
+            "i"
+        ],
+        "predecessors": [
+            "d"
+        ]
+    },
+    {
+        "id": "i",
+        "name": "i",
+        "duration": 20,
+        "successors": [
+            "j"
+        ],
+        "predecessors": [
+            "h"
+        ]
+    },
+    {
+        "id": "j",
+        "name": "j",
+        "duration": 30,
+        "successors": [
+            "l"
+        ],
+        "predecessors": [
+            "i"
+        ]
+    },
+    {
+        "id": "k",
+        "name": "k",
+        "duration": 30,
+        "successors": [
+            "l"
+        ],
+        "predecessors": [
+            "f"
+        ]
+    },
+    {
+        "id": "l",
+        "name": "l",
+        "duration": 15,
+        "successors": [
+            "m"
+        ],
+        "predecessors": [
+            "g",
+            "j",
+            "k"
+        ]
+    },
+    {
+        "id": "m",
+        "name": "m",
+        "duration": 30,
+        "successors": [
+            "n",
+            "p"
+        ],
+        "predecessors": [
+            "l"
+        ]
+    },
+    {
+        "id": "n",
+        "name": "n",
+        "duration": 15,
+        "successors": [
+            "o"
+        ],
+        "predecessors": [
+            "m"
+        ]
+    },
+    {
+        "id": "o",
+        "name": "o",
+        "duration": 30,
+        "successors": [
+            "q"
+        ],
+        "predecessors": [
+            "n"
+        ]
+    },
+    {
+        "id": "p",
+        "name": "p",
+        "duration": 15,
+        "successors": [
+            "t"
+        ],
+        "predecessors": [
+            "m"
+        ]
+    },
+    {
+        "id": "q",
+        "name": "q",
+        "duration": 15,
+        "successors": [
+            "r",
+            "s"
+        ],
+        "predecessors": [
+            "o"
+        ]
+    },
+    {
+        "id": "r",
+        "name": "r",
+        "duration": 15,
+        "successors": [
+            "u",
+            "w"
+        ],
+        "predecessors": [
+            "q"
+        ]
+    },
+    {
+        "id": "s",
+        "name": "s",
+        "duration": 30,
+        "successors": [
+            "v",
+            "w"
+        ],
+        "predecessors": [
+            "q"
+        ]
+    },
+    {
+        "id": "t",
+        "name": "t",
+        "duration": 7,
+        "successors": [
+            "u",
+            "v"
+        ],
+        "predecessors": [
+            "p"
+        ]
+    },
+    {
+        "id": "u",
+        "name": "u",
+        "duration": 4,
+        "successors": [
+            "fin"
+        ],
+        "predecessors": [
+            "r",
+            "t"
+        ]
+    },
+    {
+        "id": "v",
+        "name": "v",
+        "duration": 2,
+        "successors": [
+            "fin"
+        ],
+        "predecessors": [
+            "s",
+            "t"
+        ]
+    },
+    {
+        "id": "w",
+        "name": "w",
+        "duration": 7,
+        "successors": [
+            "fin"
+        ],
+        "predecessors": [
+            "r",
+            "s"
+        ]
+    },
+    {
+        "id": "fin",
+        "name": "fin",
+        "duration": 0,
+        "successors": [],
+        "predecessors": [
+            "u",
+            "v",
+            "w"
+        ]
+    }
+]
