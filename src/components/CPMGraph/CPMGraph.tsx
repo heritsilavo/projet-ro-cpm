@@ -40,7 +40,7 @@ const getTaskById = function (id:string, listeTache: Task[]):(Task | null) {
 }
 
 
-//TODO: Creer un noeud personalisée avec un handler pour chaque sorties et un handler pour les entreée
+//TODO: Creer un noeud personalisée avec un handler pour chaque sorties et un handler pour les 
 
 export default function CPMGraph() {
 
