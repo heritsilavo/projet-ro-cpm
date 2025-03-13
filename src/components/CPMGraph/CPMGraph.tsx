@@ -32,6 +32,16 @@ const initialTasks: Task[] = [
     { id: 'fin', name: 'fin', duration: 0, successors: [] },
 ];
 
+const getTaskById = function (id:string, listeTache: Task[]):(Task | null) {
+    for (let i = 0; i < listeTache.length; i++) {
+        if (listeTache[i].id == id) return listeTache[i];
+    }
+    return null;
+}
+
+
+//TODO: Creer un noeud personalisée avec un handler pour chaque sorties et un handler pour les entreée
+
 export default function CPMGraph() {
 
     const [tasks, setTasks] = useState<Task[]>(initialTasks)
@@ -41,26 +51,42 @@ export default function CPMGraph() {
         var events: EventType[] = [];
         var arcs: ArcType[] = []
 
+        const tacheDebut = tasks.find(t => (t.id=='start'));
+        const eventDebut: EventType = {
+            id: "start",
+            name: "deb",
+            entree: [],
+            sortie: tacheDebut.successors.map(s => ('debut-'+s))
+        }
+
+        events.push(eventDebut);
+
         tasks.forEach((task: Task, index: number) => {
-            var event: EventType = {
-                id: (task.id == "fin") ? "fin" : ("debut-" + task.successors.join("-")),
-                name: (task.id == "fin") ? "fin" : ("debut-" + task.successors.join("-")),
-                entree: [],
-                sortie: []
+            if (task.id != 'start' && task.id != "fin") {
+                //Crer l'arc
+                var arc:ArcType = {
+                    id: task.id,
+                    name: task.name,
+                    entree: ('debut-'+task.id),
+                    sortie: ('fin-'+task.id),
+                    task
+                }
+
+                arcs.push(arc);
+                
+                
+
+                //Creer l'evenement debut des taches successeurs si l'event n'existe pas
+                var event:EventType = {
+                    id: task.successors.map(s => 'debut-'+s+"-fin-"+task.id).join("_"),
+                    name: task.successors.map(s => 'debut-'+s+"-fin-"+task.id).join("_"),
+                    entree: ["fin-"+task.id],
+                    sortie: task.successors.map(s => 'debut-'+s)
+                }
+
+                events.push(event)
+                
             }
-
-            events.push(event);
-
-
-            var arc: ArcType = {
-                id: task.id,
-                name: task.name,
-                task: task,
-                entree: "",
-                sortie: ""
-            }
-
-            arcs.push(arc)
         });
 
         return { events, arcs };
