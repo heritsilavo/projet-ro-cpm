@@ -12,10 +12,10 @@ const initialTasks: Task[] = [
     { id: 'd', name: 'd', duration: 30, successors: ['e', 'g', 'h'] },
     { id: 'e', name: 'e', duration: 45, successors: ['f'] },
     { id: 'f', name: 'f', duration: 15, successors: ['k'] },
-    { id: 'g', name: 'g', duration: 45, successors: ['l'] },
+    { id: 'g', name: 'g', duration: 45, successors: ['m'] },
     { id: 'h', name: 'h', duration: 60, successors: ['i'] },
     { id: 'i', name: 'i', duration: 20, successors: ['j'] },
-    { id: 'j', name: 'j', duration: 30, successors: ['l'] },
+    { id: 'j', name: 'j', duration: 30, successors: ['m'] },
     { id: 'k', name: 'k', duration: 30, successors: ['l'] },
     { id: 'l', name: 'l', duration: 15, successors: ['m'] },
     { id: 'm', name: 'm', duration: 30, successors: ['n', 'p'] },
@@ -39,6 +39,32 @@ const getTaskById = function (id:string, listeTache: Task[]):(Task | null) {
     return null;
 }
 
+const getTaskIndexInPredecessorSSuccessor = function (taskId:string, taskList:Task[]):number {
+    var index = -1;
+    const predecessor = getTaskById(getTaskById(taskId, taskList).predecessors[0], taskList);
+    if (!!predecessor) {
+        for (let i = 0; i < predecessor.successors.length; i++) {
+            if (predecessor.successors[i] == taskId) index=i;
+        }
+    }
+    return index;
+}
+
+const isThereTaskWithCommonSuccessor = function (taskId:string, taskList:Task[]):boolean {
+    const task = getTaskById(taskId, taskList);
+    var exist = false;
+    if (!!task) {
+        taskList.filter(t=>t.id!=taskId).forEach(t => {
+            t.successors.forEach(succ1 => {
+                task.successors.forEach(succ2 => {
+                    if (succ1 == succ2) exist = true;
+                })
+            });
+        });
+    }
+    return exist;
+}
+
 
 //TODO: Creer un noeud personalisée avec un handler pour chaque sorties et un handler pour les 
 
@@ -47,13 +73,13 @@ export default function CPMGraph() {
     const [tasks, setTasks] = useState<Task[]>(initialTasks)
 
     //Les arcs representent les taches et le noueds representent les evenements(deb-a, )
-    const generateEventsAndArcs = useCallback(function (): { events: EventType[], arcs: ArcType[] } {
+    const generateEventsAndArcs = useCallback(function (tasks: Task[]): { events: EventType[], arcs: ArcType[] } {
         var events: EventType[] = [];
         var arcs: ArcType[] = []
 
         const tacheDebut = tasks.find(t => (t.id=='start'));
         const eventDebut: EventType = {
-            id: "start",
+            id: "debut-"+tasks[1].id,
             name: "deb",
             entree: [],
             sortie: tacheDebut.successors.map(s => ('debut-'+s))
@@ -63,29 +89,60 @@ export default function CPMGraph() {
 
         tasks.forEach((task: Task, index: number) => {
             if (task.id != 'start' && task.id != "fin") {
-                //Crer l'arc
-                var arc:ArcType = {
-                    id: task.id,
-                    name: task.name,
-                    entree: ('debut-'+task.id),
-                    sortie: ('fin-'+task.id),
-                    task
+                
+                //CREER UN ARC
+                const entryEvent = events.find(e => e.id.includes('debut-'+task.id))
+                if (!entryEvent) {
+                    console.error("CAN'T FIND ENTRY NODE FOR TASK:"+JSON.stringify(task));
+                }else {
+                    var arc:ArcType = {
+                        id: task.id,
+                        name: task.name,
+                        entreeNodeId: entryEvent.id,
+                        entreeHandlerId: entryEvent.id + "-" + getTaskIndexInPredecessorSSuccessor(task.id,tasks), //entreeNodeId + index in predecessor's successor list
+                        sortieNodeId: "",//A Completer apres creation de l'event
+                        task
+                    }
+
+                    ////CREER UN EVENT
+                    var event:EventType = new EventType();
+                    
+                    const isEventExistBySuccesor = (successor:string, eventList:EventType[]): {exist: boolean, event:EventType | null} => {
+                        var result:{exist: boolean, event:EventType | null} = {exist:false, event:null};
+                        eventList.forEach(existingEvent => {
+                            if (existingEvent.id == "debut-"+successor) result = {exist:true, event:existingEvent}
+                        });
+                        return result;
+                    }
+                    
+                    if (isThereTaskWithCommonSuccessor(task.id,tasks)) {
+                        if (task.successors.length > 1) {
+                            //Cas creer arcs fictifs de valeur ZERO
+                        } else if (task.successors.length == 1) {
+                            if (isEventExistBySuccesor(task.successors[0], events).exist) event = isEventExistBySuccesor(task.successors[0], events).event;
+                            else {
+                                event = {
+                                    id: task.successors.map(s=>("debut-"+s)).join('_'),
+                                    name: task.successors.map(s=>("debut-"+s)).join('_'),
+                                    entree: [],
+                                    sortie: task.successors.map((s,i)=>("debut-"+s+"-"+i))
+                                }
+                                events.push(event)
+                            }
+                        }
+                    } else { //Cas normale
+                        event = {
+                            id: task.successors.map(s=>("debut-"+s)).join('_'),
+                            name: task.successors.map(s=>("debut-"+s)).join('_'),
+                            entree: [],
+                            sortie: task.successors.map((s,i)=>("debut-"+s+"-"+i))
+                        }
+                        events.push(event)
+                    }
+                    arc.sortieNodeId = event.id;
+                    arcs.push(arc);
                 }
 
-                arcs.push(arc);
-                
-                
-
-                //Creer l'evenement debut des taches successeurs si l'event n'existe pas
-                var event:EventType = {
-                    id: task.successors.map(s => 'debut-'+s+"-fin-"+task.id).join("_"),
-                    name: task.successors.map(s => 'debut-'+s+"-fin-"+task.id).join("_"),
-                    entree: ["fin-"+task.id],
-                    sortie: task.successors.map(s => 'debut-'+s)
-                }
-
-                events.push(event)
-                
             }
         });
 
@@ -94,7 +151,7 @@ export default function CPMGraph() {
 
     useEffect(function () {
         const taskWithPredecessors = calculatePredecessors(tasks);
-        const {arcs,events} = generateEventsAndArcs();
+        const {arcs,events} = generateEventsAndArcs(taskWithPredecessors);
         
         console.log("EVENTS: ", events);
         console.log("ARCS: ",arcs);

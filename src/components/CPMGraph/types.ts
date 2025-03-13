@@ -9,17 +9,25 @@ export interface Task {
     slack?: number;
 }
 
-export interface EventType {
+export class EventType {
     id: string;
     name: string;
     entree: string[];
     sortie: string[];
+
+    constructor() {
+        this.id = "";
+        this.name = "";
+        this.entree = [];
+        this.sortie = [];
+    }
 }
 
 export interface ArcType {
     id: string;
     name: string;
-    entree: string;
-    sortie: string;
+    entreeNodeId: string;
+    entreeHandlerId: string;
+    sortieNodeId: string;
     task: Task;
 }
