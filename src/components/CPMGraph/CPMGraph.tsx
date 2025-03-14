@@ -281,6 +281,7 @@ export default function CPMGraph() {
                                 }
                                 events.push(event)
                             }
+                            arc.sortieNodeId = event.id;
                         }
                     } else { //Cas normale
                         event = {
@@ -289,9 +290,10 @@ export default function CPMGraph() {
                             entree: [],
                             sortie: task.successors.map((s, i) => ("debut-" + s + "-" + i))
                         }
+                        arc.sortieNodeId = event.id;
                         events.push(event)
                     }
-                    arc.sortieNodeId = event.id;
+                    
                     arcs.push(arc);
                 }
 
@@ -339,6 +341,38 @@ export default function CPMGraph() {
         return reactFlowNodes;
     }, []);
 
+    // Fonction pour générer les arêtes
+    const generateEdges = useCallback((arcList: ArcType[], criticalPathIds: string[]) => {
+        const edgesList: Edge[] = [];
+
+        arcList.forEach((arc) => {
+            const isCritical = criticalPathIds.includes(arc.id)
+
+            edgesList.push({
+                id: arc.id,
+                source: arc.entreeNodeId,
+                target: arc.sortieNodeId,
+                label: `${arc.name}`,
+                labelStyle: {
+                    fill: isCritical ? 'red' : 'black',
+                    fontWeight: isCritical ? 'bold' : 'normal'
+                },
+                style: {
+                    stroke: isCritical ? 'red' : '#999',
+                    strokeWidth: isCritical ? 2 : 1
+                },
+                markerEnd: {
+                    type: MarkerType.ArrowClosed,
+                    color: isCritical ? 'red' : '#999',
+                },
+                animated: isCritical,
+            });
+        });
+
+        return edgesList;
+    }, []);
+
+
     useEffect(function () {
         const { updatedTasks, criticalPathIds } = calculateCriticalPath(initialTasks);
         console.log("UPDATED TASKS", updatedTasks);
@@ -349,6 +383,9 @@ export default function CPMGraph() {
 
         const generatedNodes = layoutNodes(events);
         setNodes(generatedNodes);
+
+        const generatedEdges = generateEdges(arcs, criticalPathIds);
+        setEdges(generatedEdges)
 
         console.log("EVENTS: ", events);
         console.log("ARCS: ", arcs);
