@@ -114,11 +114,64 @@ export default function CPMGraph() {
                         });
                         return result;
                     }
+
+                    const generateUniqueEventId = (baseId: string, events: EventType[]): string => {
+                        let id = baseId;
+                        let counter = 1;
+                        while (events.some(e => e.id === id)) {
+                            id = `${baseId}-${counter}`;
+                            counter++;
+                        }
+                        return id;
+                    };
                     
                     if (isThereTaskWithCommonSuccessor(task.id,tasks)) {
                         if (task.successors.length > 1) {
-                            //Cas creer arcs fictifs de valeur ZERO
-                        } else if (task.successors.length == 1) {
+                        // Create a junction event for this task's exit
+                        const junctionEventId = generateUniqueEventId("junction-" + task.id, events);
+                        const junctionEvent: EventType = {
+                            id: junctionEventId,
+                            name: "junction-" + task.name,
+                            entree: [arc.id],
+                            sortie: []
+                        };
+                        events.push(junctionEvent);
+                        arc.sortieNodeId = junctionEventId;
+                        
+                        // Create dummy arcs from junction to each successor's entry event
+                        task.successors.forEach((successorId, index) => {
+                            // Find or create successor entry event
+                            let successorEvent = events.find(e => e.id === "debut-" + successorId);
+                            if (!successorEvent) {
+                                successorEvent = {
+                                    id: "debut-" + successorId,
+                                    name: "debut-" + getTaskById(successorId, tasks)?.name || successorId,
+                                    entree: [],
+                                    sortie: []
+                                };
+                                events.push(successorEvent);
+                            }
+                            
+                            // Create dummy arc
+                            const dummyArc: ArcType = {
+                                id: `dummy-${task.id}-to-${successorId}`,
+                                name: "", // Empty name for dummy arcs
+                                entreeNodeId: junctionEventId,
+                                entreeHandlerId: `${junctionEventId}-${index}`,
+                                sortieNodeId: successorEvent.id,
+                                task: {
+                                    id: `dummy-${task.id}-${successorId}`,
+                                    name: "",
+                                    duration: 0, // Zero duration for dummy arcs
+                                    successors: []
+                                }
+                            };
+                            
+                            arcs.push(dummyArc);
+                            junctionEvent.sortie.push(dummyArc.id);
+                            successorEvent.entree.push(dummyArc.id);
+                        });
+                    } else if (task.successors.length == 1) {
                             if (isEventExistBySuccesor(task.successors[0], events).exist) event = isEventExistBySuccesor(task.successors[0], events).event;
                             else {
                                 event = {
@@ -146,6 +199,13 @@ export default function CPMGraph() {
             }
         });
 
+        const eventFinIndex = events.findIndex(e => e.id.includes('fin'));
+        if (eventFinIndex == -1) 
+            console.error("CAN'T FIND FIN EVENT");
+        else {
+            events[eventFinIndex].name = "fin";
+        }
+            
         return { events, arcs };
     }, [tasks])
 
