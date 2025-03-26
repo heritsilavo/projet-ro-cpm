@@ -1,5 +1,6 @@
 "use client"; // Ajouter cette ligne si vous utilisez le App Router
 
+import CustomEdge from '@/components/CustomEdge/CustomEdge';
 import dynamic from 'next/dynamic';
 
 // Import dynamique côté client pour éviter les erreurs de SSR

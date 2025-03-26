@@ -14,12 +14,20 @@ export class EventType {
     name: string;
     entree: string[];
     sortie: string[];
+    taskEntries?: Task[];
+    taskExits?: Task[];
+    erliest?: number;
+    latests?: { taskId: string, latest: number }[];
 
     constructor() {
         this.id = "";
         this.name = "";
         this.entree = [];
         this.sortie = [];
+        this.erliest = 0;
+        this.taskEntries = [];
+        this.taskExits = [];
+        this.latests = [];
     }
 }
 

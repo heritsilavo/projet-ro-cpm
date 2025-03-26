@@ -1,3 +1,4 @@
+"use client"
 import React, { useCallback, useEffect, useState } from "react";
 import { ArcType, Task, EventType } from "./types";
 import { calculatePredecessors } from "./utils";
@@ -11,9 +12,11 @@ import {
     ReactFlow,
     Node,
     Edge,
+    ReactFlowProvider,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { ProjectSummary } from "../ProjectSummary/ProjectSummary";
+import CustomEdge from "../CustomEdge/CustomEdge";
 
 // Définition des données initiales
 const initialTasks: Task[] = [
@@ -76,9 +79,6 @@ const isThereTaskWithCommonSuccessor = function (taskId: string, taskList: Task[
     }
     return exist;
 }
-
-
-//TODO: Creer un noeud personalisée avec un handler pour chaque sorties et un handler pour les 
 
 export default function CPMGraph() {
 
@@ -181,7 +181,8 @@ export default function CPMGraph() {
             id: "debut-" + tasks[1].id,
             name: "deb",
             entree: [],
-            sortie: tacheDebut.successors.map(s => ('debut-' + s))
+            sortie: tacheDebut.successors.map(s => ('debut-' + s)),
+            erliest: 0
         }
 
         events.push(eventDebut);
@@ -205,6 +206,7 @@ export default function CPMGraph() {
 
                     ////CREER UN EVENT
                     var event: EventType = new EventType();
+
 
                     const isEventExistBySuccesor = (successor: string, eventList: EventType[]): { exist: boolean, event: EventType | null } => {
                         var result: { exist: boolean, event: EventType | null } = { exist: false, event: null };
@@ -246,7 +248,7 @@ export default function CPMGraph() {
                                         id: "debut-" + successorId,
                                         name: "debut-" + getTaskById(successorId, tasks)?.name || successorId,
                                         entree: [],
-                                        sortie: []
+                                        sortie: ["debut-" + successorId + "-" + index]
                                     };
                                     events.push(successorEvent);
                                 }
@@ -271,14 +273,19 @@ export default function CPMGraph() {
                                 successorEvent.entree.push(dummyArc.id);
                             });
                         } else if (task.successors.length == 1) {
-                            if (isEventExistBySuccesor(task.successors[0], events).exist) event = isEventExistBySuccesor(task.successors[0], events).event;
+                            if (isEventExistBySuccesor(task.successors[0], events).exist) {
+                                event = isEventExistBySuccesor(task.successors[0], events).event;
+                                event.entree.push(arc.id);
+                            }
                             else {
+
                                 event = {
                                     id: task.successors.map(s => ("debut-" + s)).join('_'),
                                     name: task.successors.map(s => ("debut-" + s)).join('_'),
                                     entree: [],
                                     sortie: task.successors.map((s, i) => ("debut-" + s + "-" + i))
                                 }
+                                event.entree.push(arc.id);
                                 events.push(event)
                             }
                             arc.sortieNodeId = event.id;
@@ -291,9 +298,10 @@ export default function CPMGraph() {
                             sortie: task.successors.map((s, i) => ("debut-" + s + "-" + i))
                         }
                         arc.sortieNodeId = event.id;
+                        event.entree.push(arc.id);
                         events.push(event)
                     }
-                    
+
                     arcs.push(arc);
                 }
 
@@ -307,13 +315,152 @@ export default function CPMGraph() {
             events[eventFinIndex].name = "fin";
         }
 
+        //Add tasks
+        events.forEach((event) => {
+
+
+            event.entree.forEach((taskId) => {
+
+                if (taskId.includes("dummy")) {
+                    const task = tasks.find(t => t.id === taskId.split("-")[3]);
+                    event.taskEntries = event.taskEntries || [];
+                    event.taskEntries.push(task);
+                } else {
+                    const t = getTaskById(taskId, tasks);
+                    event.taskEntries = event.taskEntries || [];
+                    event.taskEntries.push(t);
+                }
+            });
+
+            event.sortie.forEach((taskId) => {
+                const t = getTaskById(taskId.split("-")[1], tasks);
+                event.taskExits = event.taskExits || [];
+                event.taskExits.push(t);
+            });
+
+
+        });
+
+        //calculate erliest
+        events.forEach((event) => {
+            if (event.name != "deb") {
+                var erliests: number[] = [];
+                const previousEtries = event.entree.map(entree => ({ event: events.find(e => (e.id.includes("-" + entree) || (entree.includes("dummy") && e.id.includes("-" + entree.split('-')[1])))), task: tasks.find(t => (t.id == entree) || (entree.includes("dummy") && t.id == entree.split('-')[1])) }));
+
+                const calculateErliest = function (e: EventType) {
+                    const previous = e.entree.map(entree => ({ event: events.find(e => (e.id.includes("-" + entree) || (entree.includes("dummy") && e.id.includes("-" + entree.split('-')[1])))), task: tasks.find(t => (t.id == entree) || (entree.includes("dummy") && t.id == entree.split('-')[1])) }));
+                    previous.forEach(entry => {
+                        if (!entry.event.erliest) {
+                            calculateErliest(entry.event)
+                        }
+                    });
+                    e.erliest = Math.max(...previous.map(entry => (entry.event.erliest + entry.task.duration)));
+                }
+
+                //si le previousEntry n'a pas de erliest calculer le d'abord et faire de meme pour ses previousEntry a lui.
+                previousEtries.forEach(entry => {
+                    if (!entry.event.erliest && entry.event.erliest != 0) {
+                        calculateErliest(entry.event)
+                    }
+                });
+
+                event.erliest = Math.max(...previousEtries.map(entry => (entry.event.erliest + entry.task.duration)));
+            }
+        });
+
+        //TODO: calculate latests
+        //Ne pas retenir qu'une seule valeur retenire une liste de { taskId: string, latest: number }
+        const calculateLatests = function (event: EventType) {
+            //console.log("%%%%%%%%%%%: ", event.id, event);
+            if (event.name == "fin") {
+                event.latests = [{ taskId: "", latest: event.erliest }]
+            } else if (event.id.includes("junction")) {
+                var nextNodes = event.sortie.map(s => events.find(e => e.id == "debut-"+s.split('-')[3]));
+                nextNodes.forEach(n => calculateLatests(n));
+                
+                nextNodes = nextNodes.map(n => events.find(e => e.id == n.id));
+                var values =[];
+                nextNodes.forEach(node => values.push(Math.min(...node.latests.map(l=>l.latest))))
+                //console.log("%%%%%%%%", event.id, values);
+                event.latests = [{latest:Math.min(...values), taskId: ""}]
+            } else {
+                const endTasks = event.taskExits;
+                if (!!endTasks) {
+                    var latests = []
+                    endTasks.forEach((t, i) => {
+                        const arc = arcs.find(a => a.id == event.sortie[i].split("-")[1])
+
+                        var values = []
+
+                        const nextNode = events.find(e => e.id == arc.sortieNodeId);
+                        if (!nextNode.latests) nextNode.latests = [];
+                        calculateLatests(nextNode);
+                        values = nextNode.latests.map(l => l.latest - t.duration);
+                        //console.log("%%%%%%%%", event.id, values);
+                        latests.push({ taskId: t.id, latest: Math.min(...values) })
+                        
+                    });
+                    event.latests = [...latests]
+                }
+            }
+
+        }
+        calculateLatests(events[0])
+
         return { events, arcs };
-    }, [tasks])
+    }, [tasks]);
+
 
     // Fonction pour positionner les nœuds
     const layoutNodes = useCallback((events: EventType[]) => {
+        const calculateDepth = () => {
+            const depthMap = new Map<string, number>();
+            const updateDepthMap = new Map<string, number>();
 
-        const reactFlowNodes: Node[] = [];
+            // First, initialize all events with a base depth of 0
+            events.forEach((event) => {
+                depthMap.set(event.id, 0);
+            });
+
+            // Recursive depth calculation
+            events.forEach((event) => {
+                if (event.id.includes("_")) {
+                    const SuccTasks = event.id.split("_").map((eventId) =>
+                        getTaskById(eventId.split("-")[1], tasks)
+                    );
+
+                    SuccTasks.forEach((task) => {
+                        if (task.successors.length === 1) {
+                            const eventSuccessor = events.find(e => e.id.includes("-" + task.successors[0]));
+                            if (eventSuccessor) {
+                                updateDepthMap.set(eventSuccessor.id, 1);
+                            }
+                        }
+
+                        if (task.successors.length > 1) {
+                            task.successors.forEach((successorId, index) => {
+                                const eventSuccessor = events.find(e => e.id.includes("-" + successorId));
+                                if (eventSuccessor) {
+                                    updateDepthMap.set(eventSuccessor.id, 1 + index);
+                                }
+                            });
+                        }
+                    });
+                }
+            });
+
+            // Update depth map with calculated depths
+            for (const [eventId, depth] of updateDepthMap.entries()) {
+                const currentDepth = depthMap.get(eventId) || 0;
+                depthMap.set(eventId, currentDepth + depth);
+            }
+
+            return depthMap;
+        };
+
+        // Calculate depths
+        const depthMap = calculateDepth();
+        console.log("DEPTH MAP", depthMap);
 
         const nodeStyle = {
             width: 100,
@@ -324,38 +471,61 @@ export default function CPMGraph() {
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'center'
-        }
+        };
 
-        events.forEach((event, index) => {
-            reactFlowNodes.push({
+        const reactFlowNodes: Node[] = events.map((event, index) => {
+            const depth = depthMap.get(event.id) || 0;
+
+            return {
                 id: event.id,
                 type: 'default',
-                position: { x: index * 300, y: 0 },
+                targetPosition: 'left',
+                sourcePosition: 'right',
+                position: {
+                    x: depth === 0 ? index * 300 : index * 300,
+                    y: depth * 250
+                },
                 data: {
-                    label: event.name,
+                    label: event.erliest+" {"+event.latests.map(l => l.latest)+"}",
                 },
                 style: nodeStyle,
-            })
+            };
         });
 
         return reactFlowNodes;
-    }, []);
+    }, [tasks]);
 
     // Fonction pour générer les arêtes
     const generateEdges = useCallback((arcList: ArcType[], criticalPathIds: string[]) => {
         const edgesList: Edge[] = [];
 
         arcList.forEach((arc) => {
-            const isCritical = criticalPathIds.includes(arc.id)
+            var isCritical = criticalPathIds.includes(arc.id)
+
+            if (arc.id.includes("dummy")) {
+                const eventsId = arc.id.split("-").filter((id) => id.length == 1);
+                //console.log("DUMMYS EVENTS ID", eventsId, criticalPathIds.includes(eventsId[0]) && criticalPathIds.includes(eventsId[1]));
+
+                if (criticalPathIds.includes(eventsId[0]) && criticalPathIds.includes(eventsId[1])) {
+                    isCritical = true;
+                }
+            }
 
             edgesList.push({
                 id: arc.id,
                 source: arc.entreeNodeId,
                 target: arc.sortieNodeId,
                 label: `${arc.name}`,
+                data: {
+                    name: arc.name,
+                    duration: arc.task?.duration || 0,
+                    isCritical
+                },
                 labelStyle: {
                     fill: isCritical ? 'red' : 'black',
-                    fontWeight: isCritical ? 'bold' : 'normal'
+                    fontWeight: isCritical ? 'bold' : 'normal',
+                    fontSize: "20px",
+                    background: "blue"
                 },
                 style: {
                     stroke: isCritical ? 'red' : '#999',
@@ -366,6 +536,7 @@ export default function CPMGraph() {
                     color: isCritical ? 'red' : '#999',
                 },
                 animated: isCritical,
+                type: "custom"
             });
         });
 
@@ -379,7 +550,7 @@ export default function CPMGraph() {
 
         setTasks(updatedTasks);
         setCriticalPath(criticalPathIds);
-        const { arcs, events } = generateEventsAndArcs(updatedTasks);
+        var { arcs, events } = generateEventsAndArcs(updatedTasks);
 
         const generatedNodes = layoutNodes(events);
         setNodes(generatedNodes);
@@ -393,19 +564,22 @@ export default function CPMGraph() {
 
     }, [])
 
+
     return <div style={{ width: '100%', height: '800px' }}>
-        <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            //nodeTypes={nodeTypes}
-            fitView
-        >
-            <Background />
-            <Controls />
-            <MiniMap />
-            <ProjectSummary criticalPath={criticalPath} tasks={tasks}></ProjectSummary>
-        </ReactFlow>
+        <ReactFlowProvider>
+            <ReactFlow
+                nodes={nodes}
+                edges={edges}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                edgeTypes={{ custom: CustomEdge }}
+                fitView
+            >
+                <Background />
+                <Controls />
+                <MiniMap />
+                <ProjectSummary criticalPath={criticalPath} tasks={tasks}></ProjectSummary>
+            </ReactFlow>
+        </ReactFlowProvider>
     </div>
 }

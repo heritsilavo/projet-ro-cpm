@@ -1,0 +1,33 @@
+.edge-label-container {
+  z-index: 10;
+}
+
+.edge-label-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  min-height: 40px;
+  background: #3b82f6;
+  border-radius: 50%;
+  color: white;
+  font-weight: bold;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  border: 2px solid white;
+}
+
+.edge-name {
+  font-size: 14px;
+  line-height: 1;
+  margin-bottom: 2px;
+}
+
+.edge-duration {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.critical-edge {
+  background: #ef4444;
+}
