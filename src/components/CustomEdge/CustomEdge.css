@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 .edge-label-container {
   z-index: 10;
 }
@@ -7,8 +9,8 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-width: 40px;
-  min-height: 40px;
+  min-width: 60px;
+  min-height: 60px;
   background: #3b82f6;
   border-radius: 50%;
   color: white;
@@ -17,14 +19,14 @@
   border: 2px solid white;
 }
 
-.edge-name {
-  font-size: 14px;
+@utility edge-name {
+  @apply text-xl;
   line-height: 1;
   margin-bottom: 2px;
 }
 
-.edge-duration {
-  font-size: 12px;
+@utility edge-duration {
+  @apply text-lg;
   line-height: 1;
 }
 

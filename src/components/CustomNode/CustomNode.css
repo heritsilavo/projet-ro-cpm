@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+@utility custom-node-content {
+    @apply h-[120px] w-[120px] border-[#999] border-2 relative bg-amber-50 flex flex-col;
+    border-radius: 50%;
+    overflow:hidden;
+}
+
+@utility is-deb-or-fin {
+    @apply flex items-center justify-center font-bold text-xl border-2 bg-blue-400 text-white;
+    border-radius: 50%;
+}
+
+@utility is-critical{
+    @apply bg-[#ffe6e6] border-red-600;
+}
+
+@utility latest-item {
+    @apply border-[0.5px] relative flex justify-center items-center w-full flex-1 font-bold;
+}
+
+@utility latest-task-badge {
+    @apply absolute top-0 left-0 text-xs font-bold flex items-center justify-center bg-amber-200 h-[15px] w-[15px]
+}
+
+@utility erliest {
+    @apply border-[0.5px] flex flex-col items-center justify-center w-[50%] font-bold;
+}
+
+@utility latests-container {
+    @apply flex flex-col items-center justify-center w-[50%];
+}

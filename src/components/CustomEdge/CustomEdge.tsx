@@ -44,7 +44,7 @@ export default function CustomEdge({
         >
           <div className={"edge-label-content"+(data.isCritical ? ' critical-edge ' : '')}>
             <div className="edge-name">{data.name}</div>
-            <div className="edge-duration">{data.duration}j</div>
+            <div className="edge-duration">{data.duration}</div>
           </div>
         </div>
       </EdgeLabelRenderer>
