@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @utility custom-node-content {
-    @apply h-[120px] w-[120px] border-[#999] border-2 relative bg-amber-50 flex flex-col;
+    @apply h-[120px] w-[120px] border-[#999] border-2 relative bg-amber-50 flex flex-col items-center justify-center font-bold;
     border-radius: 50%;
     overflow:hidden;
 }

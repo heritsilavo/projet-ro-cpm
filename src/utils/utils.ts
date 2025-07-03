@@ -1,5 +1,5 @@
-import { ArcType, EventType, Task } from "./types";
-import { Edge, MarkerType, Node } from "@xyflow/react";
+import { ArcType, EventType, Task } from "../components/CPMGraph/types";
+import { Edge, Node } from "@xyflow/react";
 
 // Calculer les prédécesseurs pour chaque tâche
 export const calculatePredecessors = (tasksList: Task[]): Task[] => {
@@ -343,14 +343,14 @@ export const generateEventsAndArcs = function (tasks: Task[]): { events: EventTy
         if (event.name == "fin") {
             event.latests = [{ taskId: "", latest: event.erliest }]
         } else if (event.id.includes("junction")) {
-            var nextNodes = event.sortie.map(s => events.find(e => e.id == "debut-"+s.split('-')[3]));
+            var nextNodes = event.sortie.map(s => events.find(e => e.id == "debut-" + s.split('-')[3]));
             nextNodes.forEach(n => calculateLatests(n));
-            
+
             nextNodes = nextNodes.map(n => events.find(e => e.id == n.id));
-            var values =[];
-            nextNodes.forEach(node => values.push(Math.min(...node.latests.map(l=>l.latest))))
+            var values = [];
+            nextNodes.forEach(node => values.push(Math.min(...node.latests.map(l => l.latest))))
             //console.log("%%%%%%%%", event.id, values);
-            event.latests = [{latest:Math.min(...values), taskId: ""}]
+            event.latests = [{ latest: Math.min(...values), taskId: "" }]
         } else {
             const endTasks = event.taskExits;
             if (!!endTasks) {
@@ -366,7 +366,7 @@ export const generateEventsAndArcs = function (tasks: Task[]): { events: EventTy
                     values = nextNode.latests.map(l => l.latest - t.duration);
                     //console.log("%%%%%%%%", event.id, values);
                     latests.push({ taskId: t.id, latest: Math.min(...values) })
-                    
+
                 });
                 event.latests = [...latests]
             }
@@ -431,12 +431,12 @@ export const layoutNodes = (tasks: Task[], events: EventType[], criticalPathIds:
 
     const reactFlowNodes: Node[] = events.map((event, index) => {
         const depth = depthMap.get(event.id) || 0;
-        
+
         var isCritical = false;
-        
+
         event.entree.forEach(e => {
             if (criticalPathIds.includes(e)) isCritical = true;
-            else if (e.includes("dummy") && criticalPathIds.includes(e.split("-")[1])) isCritical = true
+            else if (e.includes("dummy") && criticalPathIds.includes(e.split("-")[3])) isCritical = true
         })
         if (event.name == "deb" || event.name == "fin") isCritical = false
 
@@ -449,7 +449,7 @@ export const layoutNodes = (tasks: Task[], events: EventType[], criticalPathIds:
             },
             data: {
                 event: event,
-                isCritical 
+                isCritical
             },
         };
     });
@@ -458,7 +458,7 @@ export const layoutNodes = (tasks: Task[], events: EventType[], criticalPathIds:
 }
 
 // Fonction pour générer les arêtes
-export const generateEdges =(arcList: ArcType[], criticalPathIds: string[]) => {
+export const generateEdges = (arcList: ArcType[], criticalPathIds: string[]) => {
     const edgesList: Edge[] = [];
 
     arcList.forEach((arc) => {
@@ -466,8 +466,7 @@ export const generateEdges =(arcList: ArcType[], criticalPathIds: string[]) => {
 
         if (arc.id.includes("dummy")) {
             const eventsId = arc.id.split("-").filter((id) => id.length == 1);
-            //console.log("DUMMYS EVENTS ID", eventsId, criticalPathIds.includes(eventsId[0]) && criticalPathIds.includes(eventsId[1]));
-
+        
             if (criticalPathIds.includes(eventsId[0]) && criticalPathIds.includes(eventsId[1])) {
                 isCritical = true;
             }
@@ -480,20 +479,38 @@ export const generateEdges =(arcList: ArcType[], criticalPathIds: string[]) => {
             data: {
                 name: arc.name,
                 duration: arc.task?.duration || 0,
-                isCritical
+                isCritical,
+                slack: arc.task.slack
             },
-            style: {
-                stroke: isCritical ? 'red' : '#999',
-                strokeWidth: isCritical ? 2 : 1
-            },
-            markerEnd: {
-                type: MarkerType.ArrowClosed,
-                color: isCritical ? 'red' : '#999',
-            },
-            animated: isCritical,
             type: "custom"
         });
     });
 
     return edgesList;
+}
+
+export const getStepsDescriptions = (step: number) => {
+    var texte = "";
+    switch (step) {
+        case 1:
+            texte = "Traçage du graphe"
+            break;
+        case 2:
+            texte = "Calcul des dates au plus tot"
+            break;
+        case 3:
+            texte = "Le chemin critique"
+            break;
+        case 4:
+            texte = "Dates au plus tards"
+            break;
+        case 5:
+            texte = "Marges de retards"
+            break;
+
+        default:
+            break;
+    }
+
+    return `(${step}) - ${texte}`;
 }

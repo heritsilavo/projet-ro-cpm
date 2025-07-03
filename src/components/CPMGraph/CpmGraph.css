@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+@utility btns-container {
+    @apply w-full h-[50px] flex items-center justify-between;
+    border-bottom: 0.5px solid gray;
+}
+
+@utility btn {
+ @apply p-2 px-3 shadow-2xl bg-blue-500 text-amber-50 font-bold cursor-pointer rounded-md border-[0.5px];
+}
+
+@utility btn-disable {
+    @apply cursor-default bg-gray-400;
+}

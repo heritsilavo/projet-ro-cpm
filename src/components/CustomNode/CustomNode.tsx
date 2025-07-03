@@ -3,15 +3,25 @@ import { Handle, Position } from "@xyflow/react";
 import React from "react";
 import { EventType } from "../CPMGraph/types";
 import "./CustomNode.css"
+import { useStep } from "../CPMGraph/CPMGraph";
 
 type CustomNodePropsType = { data: { event: EventType, isCritical: boolean }, isConnectable: boolean }
 
 export const CustomNode: React.FC<CustomNodePropsType> = memo(({ data, isConnectable }) => {
   const { event, isCritical } = data;
-  const {id, name, erliest, latests} = event;
+  const { id, name, erliest, latests } = event;
+
+  const { step, setStep } = useStep()
 
   const isDeb = event.name == "deb";
-  const isFin = event.name == "fin"
+  const isFin = event.name == "fin";
+
+  const displayName = (name: string) => {
+    if (name.includes("_")) {
+      const taskIds = name.split("_").map(e => e.split("-")[1]).join("-");
+      return "debut-" + taskIds
+    } else return name;
+  }
 
   return (
     <div>
@@ -25,25 +35,26 @@ export const CustomNode: React.FC<CustomNodePropsType> = memo(({ data, isConnect
       />
 
       {
-        (isDeb || isFin) ?
-          <div className="custom-node-content is-deb-or-fin">{event.name}</div>
+        (isDeb || isFin || step < 2) ?
+          <div className={`custom-node-content ${(isDeb || isFin) ? " is-deb-or-fin " : ""}`}>{displayName(event.name)}</div>
           :
-          <div title={name} className={`custom-node-content ${isCritical?" is-critical ":""}`}>
-            {/* <p className="w-full text-center font-bold text-gray-600"> {name} </p> */}
+          <div title={name} className={`custom-node-content ${(step >= 3 && isCritical) ? " is-critical " : ""}`}>
             <div className="flex-1 w-full relative flex">
-                <div className={`erliest ${isCritical? " border-red-600 ": ""}`}> {erliest} </div>
-                <div className="latests-container">
+              <div className={`erliest ${(step >= 3 && isCritical) ? " border-red-600 " : ""}`}> {(step >= 2) && erliest} </div>
+              {
+                (step >= 4) && <div className="latests-container">
                   {
-                    latests.map(({taskId, latest}, index) => (
-                      <div className={`latest-item ${isCritical? " border-red-600 ": ""}`} key={index}>
-                          
-                          { latests.length > 1 && <div className="latest-task-badge"> {taskId} </div> }
+                    latests.map(({ taskId, latest }, index) => (
+                      <div className={`latest-item ${(step >= 3 && isCritical) ? " border-red-600 " : ""}`} key={index}>
 
-                          {latest}
+                        {latests.length > 1 && <div className="latest-task-badge"> {taskId} </div>}
+
+                        {latest}
                       </div>
                     ))
                   }
                 </div>
+              }
             </div>
           </div>
       }
