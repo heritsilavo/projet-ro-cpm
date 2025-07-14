@@ -499,33 +499,49 @@ export const layoutNodes = (tasks: Task[], events: EventType[], criticalPathIds:
 // Fonction pour générer les arêtes
 export const generateEdges = (arcList: ArcType[], criticalPathIds: string[]) => {
     const edgesList: Edge[] = [];
+    const edgeGroups = new Map<string, ArcType[]>();
 
+    // Grouper les edges par paire source-target
     arcList.forEach((arc) => {
-        var isCritical = criticalPathIds.includes(arc.id)
-
-        if (arc.id.includes("dummy")) {
-            const eventsId = arc.id.split("-").filter((id) => id.length == 1);
-            if (criticalPathIds.includes(eventsId[0]) && criticalPathIds.includes(eventsId[1])) {
-                isCritical = true;
-            }
+        const key = `${arc.entreeNodeId}-${arc.sortieNodeId}`;
+        if (!edgeGroups.has(key)) {
+            edgeGroups.set(key, []);
         }
+        edgeGroups.get(key)?.push(arc);
+    });
 
-        edgesList.push({
-            id: arc.id,
-            source: arc.entreeNodeId,
-            target: arc.sortieNodeId,
-            data: {
-                name: arc.name,
-                duration: arc.task?.duration || 0,
-                isCritical,
-                slack: arc.task.slack
-            },
-            type: "custom"
+    // Créer les edges avec les données des edges confondus
+    edgeGroups.forEach((arcs, key) => {
+        arcs.forEach((arc, index) => {
+            var isCritical = criticalPathIds.includes(arc.id);
+
+            if (arc.id.includes("dummy")) {
+                const eventsId = arc.id.split("-").filter((id) => id.length == 1);
+                if (criticalPathIds.includes(eventsId[0])) {
+                    isCritical = true;
+                }
+            }
+
+            edgesList.push({
+                id: arc.id,
+                source: arc.entreeNodeId,
+                target: arc.sortieNodeId,
+                data: {
+                    name: arc.name,
+                    duration: arc.task?.duration || 0,
+                    isCritical,
+                    slack: arc.task.slack,
+                    confondus: arcs, // Ajout des edges confondus pour le rendu
+                    edgeIndex: index, // Position dans le groupe
+                    totalConfondus: arcs.length // Nombre total d'edges confondus
+                },
+                type: "custom"
+            });
         });
     });
 
     return edgesList;
-}
+};
 
 export const getStepsDescriptions = (step: number) => {
     var texte = "";

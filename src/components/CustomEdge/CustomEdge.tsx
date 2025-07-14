@@ -3,7 +3,6 @@ import './CustomEdge.css';
 import React from 'react';
 import { useSelectedEdge, useStep } from '../CPMGraph/CPMGraph';
 import { ArcType } from '../CPMGraph/types';
-import { log } from 'console';
 
 interface CustomEdgeProps {
   id: string;
@@ -19,6 +18,8 @@ interface CustomEdgeProps {
     isCritical: boolean;
     slack: number;
     confondus: ArcType[];
+    edgeIndex: number;
+    totalConfondus: number;
   };
   selected?: boolean;
 }
@@ -37,22 +38,29 @@ export default function CustomEdge({
   const { step } = useStep();
   const isCritical = (step >= 3) && data?.isCritical;
   const confondus = data?.confondus || [];
+  const edgeIndex = data?.edgeIndex || 0;
+  const totalConfondus = data?.totalConfondus || 1;
+
+  // Calcul dynamique de l'offset en fonction du nombre d'edges confondus
+  const baseOffset = 40; // Augmentation de la valeur de base
+  const spacingFactor = 1.5; // Facteur d'espacement supplémentaire
+  const offset = baseOffset * spacingFactor * Math.max(1, totalConfondus / 2);
   
-  // Calcul de la position relative dans le groupe d'edges confondus
-  const edgeIndex = confondus.findIndex(edge => edge.id === id);
-  const totalConfondus = confondus.length;
+  const middleIndex = (totalConfondus - 1) / 2;
+  const curvature = (edgeIndex - middleIndex) * offset;
 
-  const {selectedEdge} = useSelectedEdge();
-
+  // Ajustement de la courbure pour les edges extrêmes
+  const curvatureFactor = 0.25 + (Math.abs(edgeIndex - middleIndex) / totalConfondus) * 0.1;
 
   // Calcul du chemin avec courbure personnalisée
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
-    sourceY,
+    sourceY: sourceY + curvature,
     sourcePosition,
     targetX,
-    targetY,
-    targetPosition
+    targetY: targetY + curvature,
+    targetPosition,
+    curvature: curvatureFactor
   });
 
   const markerColor = isCritical ? "#ff0072" : "#b1b1b7";
@@ -80,8 +88,8 @@ export default function CustomEdge({
         markerEnd={`url(#${id}-arrow)`}
         style={{
           stroke: markerColor,
-          strokeWidth: (selectedEdge == id) ? 5 : 4,
-          zIndex: (selectedEdge == id) ? 10 : 0, // Augmente le z-index si sélectionné
+          strokeWidth: selected ? 5 : 4,
+          zIndex: selected ? 10 : edgeIndex,
         }}
       />
 
@@ -90,9 +98,12 @@ export default function CustomEdge({
           className="edge-label-container"
           style={{
             position: 'absolute',
-            transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+            transform: `translate(-50%, -50%) translate(${labelX}px,${labelY + curvature}px)`,
             pointerEvents: 'all',
-            zIndex: (selectedEdge == id) ? 11 : 1, // Z-index légèrement plus élevé que le path
+            zIndex: selected ? 11 : edgeIndex + 1,
+            // Ajout d'un padding pour éviter les chevauchements de labels
+            padding: `${Math.min(10, offset / 4)}px`,
+            margin: `${Math.min(5, offset / 8)}px 0`
           }}
         >
           <div className={`edge-label-content ${isCritical ? 'critical-edge' : ''}`}>
