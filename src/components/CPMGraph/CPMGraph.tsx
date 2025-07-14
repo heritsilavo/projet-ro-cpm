@@ -21,12 +21,15 @@ const StepContext = createContext<{ step: number, setStep: React.Dispatch<React.
 const MIN_STEP = 1;
 const MAX_STEP = 5;
 
+const selectedEdgeContext = createContext<{ selectedEdge: string, setSelectedEdge: React.Dispatch<React.SetStateAction<string>> }>({ selectedEdge: "", setSelectedEdge: () => { } });
+
 export default function CPMGraph({ initialTasks }: { initialTasks: Task[] }) {
 
     const [tasks, setTasks] = useState<Task[]>(initialTasks)
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
     const [criticalPath, setCriticalPath] = useState<string[]>([]);
+    const [selectedEdge, setSelectedEdge] = useState<string>("");
 
     const [step, setStep] = useState(1);
 
@@ -52,22 +55,24 @@ export default function CPMGraph({ initialTasks }: { initialTasks: Task[] }) {
     return <>
         <div className="w-full h-[800px] border-2">
             <StepContext.Provider value={{ step, setStep }}>
-                <ReactFlowProvider>
-                    <ReactFlow
-                        nodes={nodes}
-                        edges={edges}
-                        onNodesChange={onNodesChange}
-                        onEdgesChange={onEdgesChange}
-                        edgeTypes={{ custom: CustomEdge }}
-                        nodeTypes={{ custom: CustomNode }}
-                        fitView
-                    >
-                        <Background />
-                        <Controls />
-                        <MiniMap />
-                        <ProjectSummary criticalPath={criticalPath} tasks={tasks}></ProjectSummary>
-                    </ReactFlow>
-                </ReactFlowProvider>
+                <selectedEdgeContext.Provider value={{ selectedEdge, setSelectedEdge }}>
+                    <ReactFlowProvider>
+                        <ReactFlow
+                            nodes={nodes}
+                            edges={edges}
+                            onNodesChange={onNodesChange}
+                            onEdgesChange={onEdgesChange}
+                            edgeTypes={{ custom: CustomEdge }}
+                            nodeTypes={{ custom: CustomNode }}
+                            fitView
+                        >
+                            <Background />
+                            <Controls />
+                            <MiniMap />
+                            <ProjectSummary criticalPath={criticalPath} tasks={tasks}></ProjectSummary>
+                        </ReactFlow>
+                    </ReactFlowProvider>
+                </selectedEdgeContext.Provider>
             </StepContext.Provider>
         </div>
         <div className="btns-container">
@@ -81,4 +86,9 @@ export default function CPMGraph({ initialTasks }: { initialTasks: Task[] }) {
 export const useStep = () => {
     const { step, setStep } = useContext(StepContext);
     return { step, setStep };
+}
+
+export const useSelectedEdge = () => {
+    const { selectedEdge, setSelectedEdge } = useContext(selectedEdgeContext);
+    return { selectedEdge, setSelectedEdge };
 }

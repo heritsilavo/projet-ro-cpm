@@ -1,7 +1,9 @@
 import { getBezierPath, EdgeLabelRenderer, EdgeProps, Position } from '@xyflow/react';
 import './CustomEdge.css';
 import React from 'react';
-import { useStep } from '../CPMGraph/CPMGraph';
+import { useSelectedEdge, useStep } from '../CPMGraph/CPMGraph';
+import { ArcType } from '../CPMGraph/types';
+import { log } from 'console';
 
 interface CustomEdgeProps {
   id: string;
@@ -11,10 +13,15 @@ interface CustomEdgeProps {
   targetY: number;
   sourcePosition: Position;
   targetPosition: Position;
-  data?: any;
+  data?: {
+    name: string;
+    duration: number;
+    isCritical: boolean;
+    slack: number;
+    confondus: ArcType[];
+  };
   selected?: boolean;
 }
-
 
 export default function CustomEdge({
   id,
@@ -26,26 +33,35 @@ export default function CustomEdge({
   targetPosition,
   data,
   selected,
-} : CustomEdgeProps) {
+}: CustomEdgeProps) {
+  const { step } = useStep();
+  const isCritical = (step >= 3) && data?.isCritical;
+  const confondus = data?.confondus || [];
+  
+  // Calcul de la position relative dans le groupe d'edges confondus
+  const edgeIndex = confondus.findIndex(edge => edge.id === id);
+  const totalConfondus = confondus.length;
+
+  const {selectedEdge} = useSelectedEdge();
+
+
+  // Calcul du chemin avec courbure personnalisée
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
     sourceY,
     sourcePosition,
     targetX,
     targetY,
-    targetPosition,
+    targetPosition
   });
 
-  const { step } = useStep();
-  const isCritical = (step >= 3) && data.isCritical;
-
-  const customMarkerEnd = `${id}-critical-arrow`
+  const markerColor = isCritical ? "#ff0072" : "#b1b1b7";
 
   return (
     <>
       <defs>
         <marker
-          id={`${id}-critical-arrow`}
+          id={`${id}-arrow`}
           markerWidth="12.5"
           markerHeight="12.5"
           viewBox="0 0 20 20"
@@ -53,10 +69,7 @@ export default function CustomEdge({
           refX="10"
           refY="5"
         >
-          <path
-            d="M 0 0 L 10 5 L 0 10 z"
-            fill={`${isCritical ? "#ff0072" : "#b1b1b7"}`} 
-          />
+          <path d="M 0 0 L 10 5 L 0 10 z" fill={markerColor} />
         </marker>
       </defs>
 
@@ -64,12 +77,14 @@ export default function CustomEdge({
         id={id}
         className={`react-flow__edge-path ${isCritical ? 'animated' : ''}`}
         d={edgePath}
-        markerEnd={`url(#${customMarkerEnd})`}
+        markerEnd={`url(#${id}-arrow)`}
         style={{
-          stroke: isCritical ? '#ff0072' : '#b1b1b7',
-          strokeWidth: selected ? 5 : 4,
+          stroke: markerColor,
+          strokeWidth: (selectedEdge == id) ? 5 : 4,
+          zIndex: (selectedEdge == id) ? 10 : 0, // Augmente le z-index si sélectionné
         }}
       />
+
       <EdgeLabelRenderer>
         <div
           className="edge-label-container"
@@ -77,18 +92,19 @@ export default function CustomEdge({
             position: 'absolute',
             transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
             pointerEvents: 'all',
+            zIndex: (selectedEdge == id) ? 11 : 1, // Z-index légèrement plus élevé que le path
           }}
         >
           <div className={`edge-label-content ${isCritical ? 'critical-edge' : ''}`}>
-            <div className="edge-name">{data.name}</div>
-            <div className="edge-duration">{data.duration}</div>
+            <div className="edge-name">{data?.name}</div>
+            <div className="edge-duration">{data?.duration}</div>
           </div>
 
-          {
-            (step >= 5) && (!!data.name) && <div className='slack-renderer'>
-              { data.slack }
+          {(step >= 5) && (!!data?.name) && (
+            <div className='slack-renderer'>
+              {data?.slack}
             </div>
-          }
+          )}
         </div>
       </EdgeLabelRenderer>
     </>

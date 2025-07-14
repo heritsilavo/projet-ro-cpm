@@ -108,7 +108,7 @@ export default function TaskEditorPage() {
     };
 
     const updateTask = (taskId: string, field: keyof Task, value: any) => {
-        if (taskId === 'start' || taskId === 'fin') return;
+        if (taskId === 'fin') return;
         
         setTasks(prevTasks => 
             prevTasks.map(task => 
@@ -120,7 +120,7 @@ export default function TaskEditorPage() {
     };
 
     const updateSuccessors = (taskId: string, successors: string) => {
-        if (taskId === 'start' || taskId === 'fin') return;
+        if (taskId === 'fin') return;
         
         const successorArray = successors
             .split(/[-,\s]+/)
@@ -218,7 +218,13 @@ export default function TaskEditorPage() {
                                         <span className="text-green-600">0</span>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <span className="text-sm text-gray-500">Automatique</span>
+                                        <input
+                                            type="text"
+                                            value={startTask?.successors?.join('-') || ''}
+                                            onChange={(e) => updateSuccessors('start', e.target.value)}
+                                            className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
+                                            placeholder="a-b-c ou fin"
+                                        />
                                     </td>
                                 </tr>
 

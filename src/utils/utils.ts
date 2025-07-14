@@ -146,7 +146,7 @@ export const generateEventsAndArcs = function (tasks: Task[]): { events: EventTy
 
     const tacheDebut = tasks.find(t => (t.id == 'start'));
     const eventDebut: EventType = {
-        id: "debut-" + tasks[1].id,
+        id: tacheDebut.successors.map(c => `debut-${c}`).join('_'),
         name: "deb",
         entree: [],
         sortie: tacheDebut.successors.map(s => ('debut-' + s)),
@@ -195,7 +195,23 @@ export const generateEventsAndArcs = function (tasks: Task[]): { events: EventTy
                 };
 
                 if (isThereTaskWithCommonSuccessor(task.id, tasks)) {
-                    if (task.successors.length > 1) {
+                    const shouldCreateJunction = function (): boolean {
+                        var result = false;
+                        const tasksWithCommonSuccessors = tasks.filter(t => t.id !== task.id && t.successors.some(s => task.successors.includes(s)));
+                        const formatSuccesors = (tast: Task) => tast.successors.sort().join('-');
+                        tasksWithCommonSuccessors.forEach(t => {
+                            if (t.successors.length > 1 && formatSuccesors(t) != formatSuccesors(task)) {
+                                result = true;
+                            }
+                        });
+                        return result;
+                    }
+
+                    if (task.successors.length > 1 && shouldCreateJunction()) {
+
+                        const isJunction = shouldCreateJunction();
+                        console.log(`[${task.id}] Should create junction: ${isJunction}`);
+
                         // Create a junction event for this task's exit
                         const junctionEventId = generateUniqueEventId("junction-" + task.id, events);
                         const junctionEvent: EventType = {
@@ -240,7 +256,28 @@ export const generateEventsAndArcs = function (tasks: Task[]): { events: EventTy
                             junctionEvent.sortie.push(dummyArc.id);
                             successorEvent.entree.push(dummyArc.id);
                         });
-                    } else if (task.successors.length == 1) {
+                    } 
+                    else if (task.successors.length > 1 && !shouldCreateJunction()) {
+                        const succesorId = task.successors.map(s => ("debut-" + s)).join('_');
+                        const index = events.findIndex(e => e.id == succesorId);
+                        if (index != -1) {
+                            event = events[index];
+                            event.entree.push(arc.id);
+                            arc.sortieNodeId = event.id;
+                        }
+                        else {
+                            event = {
+                                id: task.successors.map(s => ("debut-" + s)).join('_'),
+                                name: task.successors.map(s => ("debut-" + s)).join('_'),
+                                entree: [],
+                                sortie: task.successors.map((s, i) => ("debut-" + s + "-" + i))
+                            }
+                            event.entree.push(arc.id);
+                            arc.sortieNodeId = event.id;
+                            events.push(event)
+                        }
+                    }
+                    else if (task.successors.length == 1) {
                         if (isEventExistBySuccesor(task.successors[0], events).exist) {
                             event = isEventExistBySuccesor(task.successors[0], events).event;
                             event.entree.push(arc.id);
@@ -282,11 +319,10 @@ export const generateEventsAndArcs = function (tasks: Task[]): { events: EventTy
     else {
         events[eventFinIndex].name = "fin";
     }
+    console.log("EVENTS: ", events);
 
     //Add tasks
     events.forEach((event) => {
-
-
         event.entree.forEach((taskId) => {
 
             if (taskId.includes("dummy")) {
@@ -359,8 +395,11 @@ export const generateEventsAndArcs = function (tasks: Task[]): { events: EventTy
                     const arc = arcs.find(a => a.id == event.sortie[i].split("-")[1])
 
                     var values = []
-
                     const nextNode = events.find(e => e.id == arc.sortieNodeId);
+                    if (!nextNode) {
+                        console.error("CAN'T FIND NEXT NODE FOR EVENT: ", arc.sortieNodeId, events);
+                        return;
+                    }
                     if (!nextNode.latests) nextNode.latests = [];
                     calculateLatests(nextNode);
                     values = nextNode.latests.map(l => l.latest - t.duration);
@@ -466,7 +505,6 @@ export const generateEdges = (arcList: ArcType[], criticalPathIds: string[]) => 
 
         if (arc.id.includes("dummy")) {
             const eventsId = arc.id.split("-").filter((id) => id.length == 1);
-        
             if (criticalPathIds.includes(eventsId[0]) && criticalPathIds.includes(eventsId[1])) {
                 isCritical = true;
             }

@@ -1,4 +1,4 @@
-import { useStep } from "../CPMGraph/CPMGraph";
+import { useSelectedEdge, useStep } from "../CPMGraph/CPMGraph";
 import React from "react";
 import { Task } from "../CPMGraph/types";
 import { useRouter } from 'next/navigation';
@@ -10,6 +10,8 @@ export const ProjectSummary: React.FC<ProjectSummaryProps> = ({ tasks, criticalP
   const router = useRouter();
   const endTask = tasks?.find((t) => t.id === 'fin');
   const projectDuration = endTask ? endTask.earliest : 0;
+
+  const {selectedEdge, setSelectedEdge} = useSelectedEdge();
 
   const { step } = useStep();
 
@@ -40,7 +42,7 @@ export const ProjectSummary: React.FC<ProjectSummaryProps> = ({ tasks, criticalP
             <tr>
               <th className="table-headers">Taches</th>
               {
-                tasks.filter(t => (t.id != "deb") && (t.name != "fin")).map((t, i) => <td key={i} className="table-content">{t.name}</td>)
+                tasks.filter(t => (t.id != "deb") && (t.name != "fin")).map((t, i) => <td onClick={()=>{setSelectedEdge(t.id)}} key={i} className="table-content cursor-pointer">{t.name}</td>)
               }
             </tr>
           </thead>
