@@ -1,18 +1,25 @@
 import { ArcType, EventType, Task } from "../components/CPMGraph/types";
 import { Edge, Node } from "@xyflow/react";
 
+// Optimisation: Créer un cache pour les recherches fréquentes
+const taskCache = new Map<string, Task>();
+
 // Calculer les prédécesseurs pour chaque tâche
 export const calculatePredecessors = (tasksList: Task[]): Task[] => {
     const taskWithPredecessors = JSON.parse(JSON.stringify(tasksList)) as Task[];
 
+    // Optimisation: Initialiser tous les prédécesseurs en une passe
     taskWithPredecessors.forEach((task) => {
         task.predecessors = [];
     });
 
+    // Optimisation: Utiliser Map pour un accès O(1)
+    const taskMap = new Map(taskWithPredecessors.map(task => [task.id, task]));
+
     taskWithPredecessors.forEach((task) => {
-        if (task.successors) {
+        if (task.successors?.length) {
             task.successors.forEach((successorId) => {
-                const successor = taskWithPredecessors.find((t) => t.id === successorId);
+                const successor = taskMap.get(successorId);
                 if (successor) {
                     successor.predecessors!.push(task.id);
                 }
@@ -23,114 +30,138 @@ export const calculatePredecessors = (tasksList: Task[]): Task[] => {
     return taskWithPredecessors;
 };
 
-export const getTaskById = function (id: string, listeTache: Task[]): (Task | null) {
-    for (let i = 0; i < listeTache.length; i++) {
-        if (listeTache[i].id == id) return listeTache[i];
+// Optimisation: Utiliser Map pour un accès plus rapide
+export const getTaskById = function (id: string, listeTache: Task[]): Task | null {
+    // Mise en cache pour éviter les recherches répétées
+    if (taskCache.has(id)) {
+        return taskCache.get(id)!;
     }
-    return null;
+    
+    const task = listeTache.find(task => task.id === id) || null;
+    if (task) {
+        taskCache.set(id, task);
+    }
+    return task;
 }
 
+// Optimisation: Améliorer la logique et gérer les cas d'erreur
 export const getTaskIndexInPredecessorSSuccessor = function (taskId: string, taskList: Task[]): number {
-    var index = -1;
-    const predecessor = getTaskById(getTaskById(taskId, taskList).predecessors[0], taskList);
-    if (!!predecessor) {
-        for (let i = 0; i < predecessor.successors.length; i++) {
-            if (predecessor.successors[i] == taskId) index = i;
-        }
-    }
-    return index;
+    const task = getTaskById(taskId, taskList);
+    if (!task?.predecessors?.length) return -1;
+    
+    const predecessor = getTaskById(task.predecessors[0], taskList);
+    if (!predecessor?.successors?.length) return -1;
+    
+    return predecessor.successors.findIndex(id => id === taskId);
 }
 
+// Optimisation: Simplifier la logique avec des méthodes plus efficaces
 export const isThereTaskWithCommonSuccessor = function (taskId: string, taskList: Task[]): boolean {
     const task = getTaskById(taskId, taskList);
-    var exist = false;
-    if (!!task) {
-        taskList.filter(t => t.id != taskId).forEach(t => {
-            t.successors.forEach(succ1 => {
-                task.successors.forEach(succ2 => {
-                    if (succ1 == succ2) exist = true;
-                })
-            });
-        });
-    }
-    return exist;
+    if (!task?.successors?.length) return false;
+    
+    const taskSuccessors = new Set(task.successors);
+    
+    return taskList.some(otherTask => 
+        otherTask.id !== taskId && 
+        otherTask.successors?.some(successor => taskSuccessors.has(successor))
+    );
 }
 
 export const calculateCriticalPath = (tasksList: Task[]) => {
     const tasksWithPredecessors = calculatePredecessors(tasksList);
     const result = JSON.parse(JSON.stringify(tasksWithPredecessors)) as Task[];
 
+    // Optimisation: Utiliser Map pour un accès plus rapide
+    const taskMap = new Map(result.map(task => [task.id, task]));
+
     // Calculer les dates au plus tôt (forward pass)
     result.forEach((task) => {
         task.earliest = 0;
     });
 
-    // Tri topologique pour le forward pass
-    let sorted: string[] = [];
-    let visited = new Set<string>();
-    let temp = new Set<string>();
+    // Optimisation: Tri topologique amélioré avec détection de cycles
+    const sorted: string[] = [];
+    const visited = new Set<string>();
+    const visiting = new Set<string>();
 
-    const visit = (taskId: string) => {
-        if (temp.has(taskId)) return; // Détection de cycle
-        if (visited.has(taskId)) return;
+    const visit = (taskId: string): boolean => {
+        if (visiting.has(taskId)) {
+            throw new Error(`Cycle détecté impliquant la tâche: ${taskId}`);
+        }
+        if (visited.has(taskId)) return true;
 
-        temp.add(taskId);
-        const task = result.find((t) => t.id === taskId);
+        visiting.add(taskId);
+        const task = taskMap.get(taskId);
 
-        if (task && task.successors) {
-            task.successors.forEach((successorId) => visit(successorId));
+        if (task?.successors?.length) {
+            for (const successorId of task.successors) {
+                if (!visit(successorId)) return false;
+            }
         }
 
-        temp.delete(taskId);
+        visiting.delete(taskId);
         visited.add(taskId);
         sorted.unshift(taskId);
+        return true;
     };
 
     // Commencer par le début
-    visit('start');
+    if (!visit('start')) {
+        throw new Error('Erreur lors du tri topologique');
+    }
 
-    // Forward pass (early start/finish)
+    // Forward pass (early start/finish) - optimisé
     sorted.forEach((taskId) => {
-        const task = result.find((t) => t.id === taskId);
+        const task = taskMap.get(taskId);
+        if (!task) return;
 
-        if (task.predecessors && task.predecessors.length > 0) {
-            task.earliest = Math.max(
-                ...task.predecessors.map((predId) => {
-                    const pred = result.find((t) => t.id === predId);
-                    return pred!.earliest! + pred!.duration;
-                })
-            );
+        if (task.predecessors?.length) {
+            let maxEarliest = 0;
+            for (const predId of task.predecessors) {
+                const pred = taskMap.get(predId);
+                if (pred) {
+                    maxEarliest = Math.max(maxEarliest, (pred.earliest || 0) + pred.duration);
+                }
+            }
+            task.earliest = maxEarliest;
         } else {
             task.earliest = 0;
         }
     });
 
     // Calculer la durée totale du projet
-    const endTask = result.find((t) => t.id === 'fin');
-    const projectDuration = endTask!.earliest!;
+    const endTask = taskMap.get('fin');
+    if (!endTask) {
+        throw new Error('Tâche "fin" non trouvée');
+    }
+    const projectDuration = endTask.earliest || 0;
 
     // Calculer les dates au plus tard (backward pass)
     result.forEach((task) => {
         task.latest = projectDuration;
     });
 
-    // Backward pass (late start/finish)
+    // Backward pass (late start/finish) - optimisé
     [...sorted].reverse().forEach((taskId) => {
-        const task = result.find((t) => t.id === taskId);
+        const task = taskMap.get(taskId);
+        if (!task) return;
 
-        if (task.successors && task.successors.length > 0) {
-            task.latest = Math.min(
-                ...task.successors.map((succId) => {
-                    const succ = result.find((t) => t.id === succId);
-                    return succ!.latest! - task.duration;
-                })
-            );
+        if (task.successors?.length) {
+            let minLatest = Infinity;
+            for (const succId of task.successors) {
+                const succ = taskMap.get(succId);
+                if (succ) {
+                    minLatest = Math.min(minLatest, (succ.latest || 0) - task.duration);
+                }
+            }
+            task.latest = minLatest !== Infinity ? minLatest : projectDuration - task.duration;
         } else {
             task.latest = projectDuration - task.duration;
         }
 
         // Calculer la marge de chaque tâche
-        task.slack = task.latest! - task.earliest!;
+        task.slack = (task.latest || 0) - (task.earliest || 0);
     });
 
     // Identifier le chemin critique
@@ -139,286 +170,296 @@ export const calculateCriticalPath = (tasksList: Task[]) => {
     return { updatedTasks: result, criticalPathIds: critical };
 }
 
-//Les arcs representent les taches et le noueds representent les evenements(deb-a, )
+// Optimisation: Refactoriser pour plus de lisibilité et de maintenabilité
 export const generateEventsAndArcs = function (tasks: Task[]): { events: EventType[], arcs: ArcType[] } {
-    var events: EventType[] = [];
-    var arcs: ArcType[] = []
+    const events: EventType[] = [];
+    const arcs: ArcType[] = [];
+    
+    // Optimisation: Utiliser Map pour un accès plus rapide
+    const taskMap = new Map(tasks.map(task => [task.id, task]));
 
-    const tacheDebut = tasks.find(t => (t.id == 'start'));
+    // Créer l'événement de début
+    const startTask = taskMap.get('start');
+    if (!startTask) {
+        throw new Error('Tâche "start" non trouvée');
+    }
+
     const eventDebut: EventType = {
-        id: tacheDebut.successors.map(c => `debut-${c}`).join('_'),
+        id: startTask.successors?.map(c => `debut-${c}`).join('_') || 'debut',
         name: "deb",
         entree: [],
-        sortie: tacheDebut.successors.map(s => ('debut-' + s)),
+        sortie: startTask.successors?.map(s => `debut-${s}`) || [],
         erliest: 0
-    }
+    };
 
     events.push(eventDebut);
 
-    tasks.forEach((task: Task, index: number) => {
-        if (task.id != 'start' && task.id != "fin") {
+    // Fonctions utilitaires pour améliorer la lisibilité
+    const findEventBySuccessor = (successor: string): EventType | null => {
+        return events.find(e => e.id === `debut-${successor}`) || null;
+    };
 
-            //CREER UN ARC
-            const entryEvent = events.find(e => e.id.includes('debut-' + task.id))
-            if (!entryEvent) {
-                console.error("CAN'T FIND ENTRY NODE FOR TASK:" + JSON.stringify(task));
-            } else {
-                var arc: ArcType = {
-                    id: task.id,
-                    name: task.name,
-                    entreeNodeId: entryEvent.id,
-                    entreeHandlerId: entryEvent.id + "-" + getTaskIndexInPredecessorSSuccessor(task.id, tasks), //entreeNodeId + index in predecessor's successor list
-                    sortieNodeId: "",//A Completer apres creation de l'event
-                    task
-                }
+    const generateUniqueEventId = (baseId: string): string => {
+        let id = baseId;
+        let counter = 1;
+        while (events.some(e => e.id === id)) {
+            id = `${baseId}-${counter}`;
+            counter++;
+        }
+        return id;
+    };
 
-                ////CREER UN EVENT
-                var event: EventType = new EventType();
+    const shouldCreateJunction = (task: Task): boolean => {
+        if (!task.successors?.length) return false;
+        
+        const tasksWithCommonSuccessors = tasks.filter(t => 
+            t.id !== task.id && 
+            t.successors?.some(s => task.successors?.includes(s))
+        );
+        
+        const formatSuccessors = (t: Task) => t.successors?.sort().join('-') || '';
+        
+        return tasksWithCommonSuccessors.some(t => 
+            t.successors && t.successors.length > 1 && 
+            formatSuccessors(t) !== formatSuccessors(task)
+        );
+    };
 
+    // Traitement des tâches principales
+    tasks.forEach((task) => {
+        if (task.id === 'start' || task.id === 'fin') return;
 
-                const isEventExistBySuccesor = (successor: string, eventList: EventType[]): { exist: boolean, event: EventType | null } => {
-                    var result: { exist: boolean, event: EventType | null } = { exist: false, event: null };
-                    eventList.forEach(existingEvent => {
-                        if (existingEvent.id == "debut-" + successor) result = { exist: true, event: existingEvent }
-                    });
-                    return result;
-                }
+        const entryEvent = events.find(e => e.id.includes(`debut-${task.id}`));
+        if (!entryEvent) {
+            console.error(`Impossible de trouver l'événement d'entrée pour la tâche: ${task.id}`);
+            return;
+        }
 
-                const generateUniqueEventId = (baseId: string, events: EventType[]): string => {
-                    let id = baseId;
-                    let counter = 1;
-                    while (events.some(e => e.id === id)) {
-                        id = `${baseId}-${counter}`;
-                        counter++;
+        const arc: ArcType = {
+            id: task.id,
+            name: task.name,
+            entreeNodeId: entryEvent.id,
+            entreeHandlerId: `${entryEvent.id}-${getTaskIndexInPredecessorSSuccessor(task.id, tasks)}`,
+            sortieNodeId: "",
+            task
+        };
+
+        // Gestion des événements de sortie
+        if (isThereTaskWithCommonSuccessor(task.id, tasks)) {
+            if (task.successors && task.successors.length > 1 && shouldCreateJunction(task)) {
+                // Créer un événement de jonction
+                const junctionEventId = generateUniqueEventId(`junction-${task.id}`);
+                const junctionEvent: EventType = {
+                    id: junctionEventId,
+                    name: `junction-${task.name}`,
+                    entree: [arc.id],
+                    sortie: []
+                };
+                events.push(junctionEvent);
+                arc.sortieNodeId = junctionEventId;
+
+                // Créer des arcs fictifs
+                task.successors.forEach((successorId, index) => {
+                    let successorEvent = findEventBySuccessor(successorId);
+                    if (!successorEvent) {
+                        const successorTask = taskMap.get(successorId);
+                        successorEvent = {
+                            id: `debut-${successorId}`,
+                            name: `debut-${successorTask?.name || successorId}`,
+                            entree: [],
+                            sortie: [`debut-${successorId}-${index}`]
+                        };
+                        events.push(successorEvent);
                     }
-                    return id;
+
+                    const dummyArc: ArcType = {
+                        id: `dummy-${task.id}-to-${successorId}`,
+                        name: "",
+                        entreeNodeId: junctionEventId,
+                        entreeHandlerId: `${junctionEventId}-${index}`,
+                        sortieNodeId: successorEvent.id,
+                        task: {
+                            id: `dummy-${task.id}-${successorId}`,
+                            name: "",
+                            duration: 0,
+                            successors: []
+                        }
+                    };
+
+                    arcs.push(dummyArc);
+                    junctionEvent.sortie.push(dummyArc.id);
+                    successorEvent.entree.push(dummyArc.id);
+                });
+            } else {
+                // Logique pour les autres cas
+                const handleMultipleSuccessors = () => {
+                    if (!task.successors) return;
+                    
+                    const successorId = task.successors.map(s => `debut-${s}`).join('_');
+                    let event = events.find(e => e.id === successorId);
+                    
+                    if (!event) {
+                        event = {
+                            id: successorId,
+                            name: successorId,
+                            entree: [],
+                            sortie: task.successors.map((s, i) => `debut-${s}-${i}`)
+                        };
+                        events.push(event);
+                    }
+                    
+                    event.entree.push(arc.id);
+                    arc.sortieNodeId = event.id;
                 };
 
-                if (isThereTaskWithCommonSuccessor(task.id, tasks)) {
-                    const shouldCreateJunction = function (): boolean {
-                        var result = false;
-                        const tasksWithCommonSuccessors = tasks.filter(t => t.id !== task.id && t.successors.some(s => task.successors.includes(s)));
-                        const formatSuccesors = (tast: Task) => tast.successors.sort().join('-');
-                        tasksWithCommonSuccessors.forEach(t => {
-                            if (t.successors.length > 1 && formatSuccesors(t) != formatSuccesors(task)) {
-                                result = true;
-                            }
-                        });
-                        return result;
-                    }
-
-                    if (task.successors.length > 1 && shouldCreateJunction()) {
-
-                        const isJunction = shouldCreateJunction();
-                        console.log(`[${task.id}] Should create junction: ${isJunction}`);
-
-                        // Create a junction event for this task's exit
-                        const junctionEventId = generateUniqueEventId("junction-" + task.id, events);
-                        const junctionEvent: EventType = {
-                            id: junctionEventId,
-                            name: "junction-" + task.name,
-                            entree: [arc.id],
-                            sortie: []
+                if (task.successors && task.successors.length > 1) {
+                    handleMultipleSuccessors();
+                } else if (task.successors && task.successors.length === 1) {
+                    let event = findEventBySuccessor(task.successors[0]);
+                    if (!event) {
+                        event = {
+                            id: `debut-${task.successors[0]}`,
+                            name: `debut-${task.successors[0]}`,
+                            entree: [],
+                            sortie: [`debut-${task.successors[0]}-0`]
                         };
-                        events.push(junctionEvent);
-                        arc.sortieNodeId = junctionEventId;
-
-                        // Create dummy arcs from junction to each successor's entry event
-                        task.successors.forEach((successorId, index) => {
-                            // Find or create successor entry event
-                            let successorEvent = events.find(e => e.id === "debut-" + successorId);
-                            if (!successorEvent) {
-                                successorEvent = {
-                                    id: "debut-" + successorId,
-                                    name: "debut-" + getTaskById(successorId, tasks)?.name || successorId,
-                                    entree: [],
-                                    sortie: ["debut-" + successorId + "-" + index]
-                                };
-                                events.push(successorEvent);
-                            }
-
-                            // Create dummy arc
-                            const dummyArc: ArcType = {
-                                id: `dummy-${task.id}-to-${successorId}`,
-                                name: "", // Empty name for dummy arcs
-                                entreeNodeId: junctionEventId,
-                                entreeHandlerId: `${junctionEventId}-${index}`,
-                                sortieNodeId: successorEvent.id,
-                                task: {
-                                    id: `dummy-${task.id}-${successorId}`,
-                                    name: "",
-                                    duration: 0, // Zero duration for dummy arcs
-                                    successors: []
-                                }
-                            };
-
-                            arcs.push(dummyArc);
-                            junctionEvent.sortie.push(dummyArc.id);
-                            successorEvent.entree.push(dummyArc.id);
-                        });
-                    } 
-                    else if (task.successors.length > 1 && !shouldCreateJunction()) {
-                        const succesorId = task.successors.map(s => ("debut-" + s)).join('_');
-                        const index = events.findIndex(e => e.id == succesorId);
-                        if (index != -1) {
-                            event = events[index];
-                            event.entree.push(arc.id);
-                            arc.sortieNodeId = event.id;
-                        }
-                        else {
-                            event = {
-                                id: task.successors.map(s => ("debut-" + s)).join('_'),
-                                name: task.successors.map(s => ("debut-" + s)).join('_'),
-                                entree: [],
-                                sortie: task.successors.map((s, i) => ("debut-" + s + "-" + i))
-                            }
-                            event.entree.push(arc.id);
-                            arc.sortieNodeId = event.id;
-                            events.push(event)
-                        }
+                        events.push(event);
                     }
-                    else if (task.successors.length == 1) {
-                        if (isEventExistBySuccesor(task.successors[0], events).exist) {
-                            event = isEventExistBySuccesor(task.successors[0], events).event;
-                            event.entree.push(arc.id);
-                        }
-                        else {
-
-                            event = {
-                                id: task.successors.map(s => ("debut-" + s)).join('_'),
-                                name: task.successors.map(s => ("debut-" + s)).join('_'),
-                                entree: [],
-                                sortie: task.successors.map((s, i) => ("debut-" + s + "-" + i))
-                            }
-                            event.entree.push(arc.id);
-                            events.push(event)
-                        }
-                        arc.sortieNodeId = event.id;
-                    }
-                } else { //Cas normale
-                    event = {
-                        id: task.successors.map(s => ("debut-" + s)).join('_'),
-                        name: task.successors.map(s => ("debut-" + s)).join('_'),
-                        entree: [],
-                        sortie: task.successors.map((s, i) => ("debut-" + s + "-" + i))
-                    }
-                    arc.sortieNodeId = event.id;
                     event.entree.push(arc.id);
-                    events.push(event)
+                    arc.sortieNodeId = event.id;
                 }
-
-                arcs.push(arc);
             }
-
+        } else {
+            // Cas normal
+            if (task.successors) {
+                const event: EventType = {
+                    id: task.successors.map(s => `debut-${s}`).join('_'),
+                    name: task.successors.map(s => `debut-${s}`).join('_'),
+                    entree: [arc.id],
+                    sortie: task.successors.map((s, i) => `debut-${s}-${i}`)
+                };
+                events.push(event);
+                arc.sortieNodeId = event.id;
+            }
         }
+
+        arcs.push(arc);
     });
 
-    const eventFinIndex = events.findIndex(e => e.id.includes('fin'));
-    if (eventFinIndex == -1)
-        console.error("CAN'T FIND FIN EVENT");
-    else {
-        events[eventFinIndex].name = "fin";
+    // Mise à jour de l'événement de fin
+    const finEventIndex = events.findIndex(e => e.id.includes('fin'));
+    if (finEventIndex !== -1) {
+        events[finEventIndex].name = "fin";
     }
-    console.log("EVENTS: ", events);
 
-    //Add tasks
+    // Ajouter les tâches aux événements
     events.forEach((event) => {
+        event.taskEntries = [];
+        event.taskExits = [];
+        
         event.entree.forEach((taskId) => {
-
-            if (taskId.includes("dummy")) {
-                const task = tasks.find(t => t.id === taskId.split("-")[3]);
-                event.taskEntries = event.taskEntries || [];
+            const task = taskId.includes("dummy") 
+                ? taskMap.get(taskId.split("-")[1])
+                : taskMap.get(taskId);
+            if (task) {
                 event.taskEntries.push(task);
-            } else {
-                const t = getTaskById(taskId, tasks);
-                event.taskEntries = event.taskEntries || [];
-                event.taskEntries.push(t);
             }
         });
 
         event.sortie.forEach((taskId) => {
-            const t = getTaskById(taskId.split("-")[1], tasks);
-            event.taskExits = event.taskExits || [];
-            event.taskExits.push(t);
+            const task = taskMap.get(taskId.split("-")[1]);
+            if (task) {
+                event.taskExits.push(task);
+            }
         });
-
-
     });
 
-    //calculate erliest
-    events.forEach((event) => {
-        if (event.name != "deb") {
-            var erliests: number[] = [];
-            const previousEtries = event.entree.map(entree => ({ event: events.find(e => (e.id.includes("-" + entree) || (entree.includes("dummy") && e.id.includes("-" + entree.split('-')[1])))), task: tasks.find(t => (t.id == entree) || (entree.includes("dummy") && t.id == entree.split('-')[1])) }));
+    // Calcul des dates au plus tôt (optimisé avec mémoïsation)
+    const memoizedEarliest = new Map<string, number>();
+    
+    const calculateEarliest = (event: EventType): number => {
+        if (event.name === "deb") {
+            return event.erliest = 0;
+        }
+        
+        if (memoizedEarliest.has(event.id)) {
+            return memoizedEarliest.get(event.id)!;
+        }
 
-            const calculateErliest = function (e: EventType) {
-                const previous = e.entree.map(entree => ({ event: events.find(e => (e.id.includes("-" + entree) || (entree.includes("dummy") && e.id.includes("-" + entree.split('-')[1])))), task: tasks.find(t => (t.id == entree) || (entree.includes("dummy") && t.id == entree.split('-')[1])) }));
-                previous.forEach(entry => {
-                    if (!entry.event.erliest) {
-                        calculateErliest(entry.event)
-                    }
-                });
-                e.erliest = Math.max(...previous.map(entry => (entry.event.erliest + entry.task.duration)));
-            }
+        const previousEntries = event.entree.map(entree => ({
+            event: events.find(e => e.id.includes(`-${entree}`) || 
+                (entree.includes("dummy") && e.id.includes(`-${entree.split('-')[1]}`))),
+            task: taskMap.get(entree) || taskMap.get(entree.split('-')[1])
+        })).filter(entry => entry.event && entry.task);
 
-            //si le previousEntry n'a pas de erliest calculer le d'abord et faire de meme pour ses previousEntry a lui.
-            previousEtries.forEach(entry => {
-                if (!entry.event.erliest && entry.event.erliest != 0) {
-                    calculateErliest(entry.event)
-                }
+        const earliest = Math.max(...previousEntries.map(entry => {
+            const eventEarliest = entry.event!.erliest ?? calculateEarliest(entry.event!);
+            return eventEarliest + entry.task!.duration;
+        }));
+
+        event.erliest = earliest;
+        memoizedEarliest.set(event.id, earliest);
+        return earliest;
+    };
+
+    events.forEach(event => {
+        if (event.name !== "deb") {
+            calculateEarliest(event);
+        }
+    });
+
+    // Calcul des dates au plus tard (optimisé)
+    const calculateLatests = (event: EventType): void => {
+        if (event.latests) return; // Éviter les calculs redondants
+
+        if (event.name === "fin") {
+            event.latests = [{ taskId: "", latest: event.erliest || 0 }];
+            return;
+        }
+
+        if (event.id.includes("junction")) {
+            const nextNodes = event.sortie
+                .map(s => events.find(e => e.id === `debut-${s.split('-')[3]}`))
+                .filter(Boolean);
+            
+            nextNodes.forEach(node => calculateLatests(node!));
+            
+            const values = nextNodes.map(node => 
+                Math.min(...(node!.latests?.map(l => l.latest) || [0]))
+            );
+            
+            event.latests = [{ latest: Math.min(...values), taskId: "" }];
+        } else {
+            const endTasks = event.taskExits || [];
+            const latests: { taskId: string; latest: number }[] = [];
+
+            endTasks.forEach((task, i) => {
+                const arc = arcs.find(a => a.id === event.sortie[i]?.split("-")[1]);
+                if (!arc) return;
+
+                const nextNode = events.find(e => e.id === arc.sortieNodeId);
+                if (!nextNode) return;
+
+                calculateLatests(nextNode);
+                const values = nextNode.latests?.map(l => l.latest - task.duration) || [0];
+                latests.push({ taskId: task.id, latest: Math.min(...values) });
             });
 
-            event.erliest = Math.max(...previousEtries.map(entry => (entry.event.erliest + entry.task.duration)));
+            event.latests = latests;
         }
-    });
+    };
 
-    //TODO: calculate latests
-    //Ne pas retenir qu'une seule valeur retenire une liste de { taskId: string, latest: number }
-    const calculateLatests = function (event: EventType) {
-        //console.log("%%%%%%%%%%%: ", event.id, event);
-        if (event.name == "fin") {
-            event.latests = [{ taskId: "", latest: event.erliest }]
-        } else if (event.id.includes("junction")) {
-            var nextNodes = event.sortie.map(s => events.find(e => e.id == "debut-" + s.split('-')[3]));
-            nextNodes.forEach(n => calculateLatests(n));
-
-            nextNodes = nextNodes.map(n => events.find(e => e.id == n.id));
-            var values = [];
-            nextNodes.forEach(node => values.push(Math.min(...node.latests.map(l => l.latest))))
-            //console.log("%%%%%%%%", event.id, values);
-            event.latests = [{ latest: Math.min(...values), taskId: "" }]
-        } else {
-            const endTasks = event.taskExits;
-            if (!!endTasks) {
-                var latests = []
-                endTasks.forEach((t, i) => {
-                    const arc = arcs.find(a => a.id == event.sortie[i].split("-")[1])
-
-                    var values = []
-                    const nextNode = events.find(e => e.id == arc.sortieNodeId);
-                    if (!nextNode) {
-                        console.error("CAN'T FIND NEXT NODE FOR EVENT: ", arc.sortieNodeId, events);
-                        return;
-                    }
-                    if (!nextNode.latests) nextNode.latests = [];
-                    calculateLatests(nextNode);
-                    values = nextNode.latests.map(l => l.latest - t.duration);
-                    //console.log("%%%%%%%%", event.id, values);
-                    latests.push({ taskId: t.id, latest: Math.min(...values) })
-
-                });
-                event.latests = [...latests]
-            }
-        }
-
+    // Calculer les dates au plus tard en commençant par le début
+    if (events.length > 0) {
+        calculateLatests(events[0]);
     }
-    calculateLatests(events[0])
 
     return { events, arcs };
 }
 
-// Fonction pour positionner les nœuds
+// Fonction pour positionner les nœuds (optimisée)
 export const layoutNodes = (tasks: Task[], events: EventType[], criticalPathIds: string[]) => {
+
     const calculateDepth = () => {
         const depthMap = new Map<string, number>();
         const updateDepthMap = new Map<string, number>();
@@ -464,20 +505,19 @@ export const layoutNodes = (tasks: Task[], events: EventType[], criticalPathIds:
         return depthMap;
     };
 
-    // Calculate depths
     const depthMap = calculateDepth();
-    console.log("DEPTH MAP", depthMap);
+    const criticalPathSet = new Set(criticalPathIds);
 
     const reactFlowNodes: Node[] = events.map((event, index) => {
         const depth = depthMap.get(event.id) || 0;
-
-        var isCritical = false;
-
-        event.entree.forEach(e => {
-            if (criticalPathIds.includes(e)) isCritical = true;
-            else if (e.includes("dummy") && criticalPathIds.includes(e.split("-")[3])) isCritical = true
-        })
-        if (event.name == "deb" || event.name == "fin") isCritical = false
+        
+        const isCritical = event.name !== "deb" && event.name !== "fin" && 
+            event.entree.some(entree => {
+                if (entree.includes("dummy")) {
+                    return criticalPathSet.has(entree.split("-")[1]);
+                }
+                return criticalPathSet.has(entree);
+            });
 
         return {
             id: event.id,
@@ -496,30 +536,30 @@ export const layoutNodes = (tasks: Task[], events: EventType[], criticalPathIds:
     return reactFlowNodes;
 }
 
-// Fonction pour générer les arêtes
+// Fonction pour générer les arêtes (optimisée)
 export const generateEdges = (arcList: ArcType[], criticalPathIds: string[]) => {
     const edgesList: Edge[] = [];
     const edgeGroups = new Map<string, ArcType[]>();
+    const criticalPathSet = new Set(criticalPathIds);
 
-    // Grouper les edges par paire source-target
-    arcList.forEach((arc) => {
+    // Grouper les arêtes par paire source-target
+    arcList.forEach(arc => {
         const key = `${arc.entreeNodeId}-${arc.sortieNodeId}`;
         if (!edgeGroups.has(key)) {
             edgeGroups.set(key, []);
         }
-        edgeGroups.get(key)?.push(arc);
+        edgeGroups.get(key)!.push(arc);
     });
 
-    // Créer les edges avec les données des edges confondus
-    edgeGroups.forEach((arcs, key) => {
+    // Créer les arêtes avec optimisation
+    edgeGroups.forEach((arcs) => {
         arcs.forEach((arc, index) => {
-            var isCritical = criticalPathIds.includes(arc.id);
+            let isCritical = criticalPathSet.has(arc.id);
 
+            // Gestion des arcs fictifs
             if (arc.id.includes("dummy")) {
-                const eventsId = arc.id.split("-").filter((id) => id.length == 1);
-                if (criticalPathIds.includes(eventsId[0])) {
-                    isCritical = true;
-                }
+                const taskId = arc.id.split("-")[1];
+                isCritical = criticalPathSet.has(taskId);
             }
 
             edgesList.push({
@@ -530,10 +570,10 @@ export const generateEdges = (arcList: ArcType[], criticalPathIds: string[]) => 
                     name: arc.name,
                     duration: arc.task?.duration || 0,
                     isCritical,
-                    slack: arc.task.slack,
-                    confondus: arcs, // Ajout des edges confondus pour le rendu
-                    edgeIndex: index, // Position dans le groupe
-                    totalConfondus: arcs.length // Nombre total d'edges confondus
+                    slack: arc.task?.slack || 0,
+                    confondus: arcs,
+                    edgeIndex: index,
+                    totalConfondus: arcs.length
                 },
                 type: "custom"
             });
@@ -543,28 +583,21 @@ export const generateEdges = (arcList: ArcType[], criticalPathIds: string[]) => 
     return edgesList;
 };
 
+// Fonction inchangée
 export const getStepsDescriptions = (step: number) => {
-    var texte = "";
-    switch (step) {
-        case 1:
-            texte = "Traçage du graphe"
-            break;
-        case 2:
-            texte = "Calcul des dates au plus tot"
-            break;
-        case 3:
-            texte = "Le chemin critique"
-            break;
-        case 4:
-            texte = "Dates au plus tards"
-            break;
-        case 5:
-            texte = "Marges de retards"
-            break;
+    const descriptions = {
+        1: "Traçage du graphe",
+        2: "Calcul des dates au plus tot",
+        3: "Le chemin critique",
+        4: "Dates au plus tards",
+        5: "Marges de retards"
+    };
 
-        default:
-            break;
-    }
-
+    const texte = descriptions[step as keyof typeof descriptions] || "";
     return `(${step}) - ${texte}`;
 }
+
+// Nettoyage du cache (fonction utilitaire)
+export const clearTaskCache = () => {
+    taskCache.clear();
+};
