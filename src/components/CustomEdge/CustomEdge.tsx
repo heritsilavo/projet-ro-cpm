@@ -106,8 +106,8 @@ export default function CustomEdge({
             margin: `${Math.min(5, offset / 8)}px 0`
           }}
         >
-          <div className={`edge-label-content ${isCritical ? 'critical-edge' : ''}`}>
-            <div className="edge-name">{data?.name}</div>
+          <div title={data?.name || ""} className={`edge-label-content ${isCritical ? 'critical-edge' : ''}`}>
+            <div className="edge-name">{id.length == 1 ? id : ""}</div>
             <div className="edge-duration">{data?.duration}</div>
           </div>
 

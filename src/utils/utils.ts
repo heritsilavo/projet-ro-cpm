@@ -246,7 +246,8 @@ export const generateEventsAndArcs = function (tasks: Task[]): { events: EventTy
 
         // Gestion des événements de sortie
         if (isThereTaskWithCommonSuccessor(task.id, tasks)) {
-            if (task.successors && task.successors.length > 1 && shouldCreateJunction(task)) {
+
+            if (task.successors && shouldCreateJunction(task)) {
                 // Créer un événement de jonction
                 const junctionEventId = generateUniqueEventId(`junction-${task.id}`);
                 const junctionEvent: EventType = {
@@ -517,6 +518,12 @@ export const layoutNodes = (tasks: Task[], events: EventType[], criticalPathIds:
                     return criticalPathSet.has(entree.split("-")[1]);
                 }
                 return criticalPathSet.has(entree);
+            })
+            && event.sortie.some(sort => {
+                if (sort.includes("dummy")) {
+                    return criticalPathSet.has(sort.split("-")[3]);
+                }
+                return criticalPathSet.has(sort.split("-")[1]);
             });
 
         return {
@@ -558,8 +565,9 @@ export const generateEdges = (arcList: ArcType[], criticalPathIds: string[]) => 
 
             // Gestion des arcs fictifs
             if (arc.id.includes("dummy")) {
-                const taskId = arc.id.split("-")[1];
-                isCritical = criticalPathSet.has(taskId);
+                const taskId1 = arc.id.split("-")[1];
+                const taskId2 = arc.id.split("-")[3];
+                isCritical = criticalPathSet.has(taskId1) && criticalPathSet.has(taskId2);
             }
 
             edgesList.push({
